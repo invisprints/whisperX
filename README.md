@@ -80,11 +80,11 @@ See other methods [here.](https://pytorch.org/get-started/locally/)
 
 ### 3. Install this repo
 
-`pip install git+https://github.com/m-bain/whisperx.git@v3`
+`pip install git+https://github.com/m-bain/whisperx.git`
 
 If already installed, update package to most recent commit
 
-`pip install git+https://github.com/m-bain/whisperx.git@v3 --upgrade`
+`pip install git+https://github.com/m-bain/whisperx.git --upgrade`
 
 If wishing to modify this package, clone and install in editable mode:
 ```
@@ -176,10 +176,10 @@ print(result["segments"]) # after alignment
 diarize_model = whisperx.DiarizationPipeline(use_auth_token=YOUR_HF_TOKEN, device=device)
 
 # add min/max number of speakers if known
-diarize_segments = diarize_model(input_audio_path)
-# diarize_model(input_audio_path, min_speakers=min_speakers, max_speakers=max_speakers)
+diarize_segments = diarize_model(audio_file)
+# diarize_model(audio_file, min_speakers=min_speakers, max_speakers=max_speakers)
 
-result = assign_word_speakers(diarize_segments, result)
+result = whisperx.assign_word_speakers(diarize_segments, result)
 print(diarize_segments)
 print(result["segments"]) # segments are now assigned speaker IDs
 ```
