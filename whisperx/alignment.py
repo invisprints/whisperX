@@ -3,7 +3,7 @@ Forced Alignment with Whisper
 C. Max Bain
 """
 from dataclasses import dataclass
-from typing import Iterator, Union
+from typing import Iterator, Union, List
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,7 @@ from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
 from .audio import SAMPLE_RATE, load_audio
 from .utils import interpolate_nans
+from .types import AlignedTranscriptionResult, SingleSegment, SingleAlignedSegment, SingleWordSegment
 import nltk
 
 LANGUAGES_WITHOUT_SPACES = ["ja", "zh"]
@@ -39,6 +40,7 @@ DEFAULT_ALIGN_MODELS_HF = {
     "fa": "jonatasgrosman/wav2vec2-large-xlsr-53-persian",
     "el": "jonatasgrosman/wav2vec2-large-xlsr-53-greek",
     "tr": "mpoyraz/wav2vec2-xls-r-300m-cv7-turkish",
+    "da": "saattrupdan/wav2vec2-xls-r-300m-ftspeech",
     "he": "imvladikon/wav2vec2-xls-r-300m-hebrew",
 }
 
@@ -80,14 +82,14 @@ def load_align_model(language_code, device, model_name=None, model_dir=None):
 
 
 def align(
-    transcript: Iterator[dict],
+    transcript: Iterator[SingleSegment],
     model: torch.nn.Module,
     align_model_metadata: dict,
     audio: Union[str, np.ndarray, torch.Tensor],
     device: str,
     interpolate_method: str = "nearest",
     return_char_alignments: bool = False,
-):
+) -> AlignedTranscriptionResult:
     """
     Align phoneme recognition predictions to known transcription.
     """
@@ -146,7 +148,7 @@ def align(
         segment["clean_wdx"] = clean_wdx
         segment["sentence_spans"] = sentence_spans
     
-    aligned_segments = []
+    aligned_segments: List[SingleAlignedSegment] = []
 
     # 2. Get prediction matrix from alignment model & align
     for sdx, segment in enumerate(transcript):
@@ -154,7 +156,7 @@ def align(
         t2 = segment["end"]
         text = segment["text"]
 
-        aligned_seg = {
+        aligned_seg: SingleAlignedSegment = {
             "start": t1,
             "end": t2,
             "text": text,
@@ -259,6 +261,10 @@ def align(
                 word_text = "".join(word_chars["char"].tolist()).strip()
                 if len(word_text) == 0:
                     continue
+
+                # dont use space character for alignment
+                word_chars = word_chars[word_chars["char"] != " "]
+
                 word_start = word_chars["start"].min()
                 word_end = word_chars["end"].max()
                 word_score = round(word_chars["score"].mean(), 3)
@@ -301,7 +307,7 @@ def align(
         aligned_segments += aligned_subsegments
 
     # create word_segments list
-    word_segments = []
+    word_segments: List[SingleWordSegment] = []
     for segment in aligned_segments:
         word_segments += segment["words"]
 

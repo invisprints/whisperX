@@ -11,10 +11,10 @@ from transformers.pipelines.pt_utils import PipelineIterator
 
 from .audio import N_SAMPLES, SAMPLE_RATE, load_audio, log_mel_spectrogram
 from .vad import load_vad_model, merge_chunks
-
+from .types import TranscriptionResult, SingleSegment
 
 def load_model(whisper_arch, device, compute_type="float16", asr_options=None, language=None,
-               vad_options=None, model=None):
+               vad_options=None, model=None, task="transcribe"):
     '''Load a Whisper model for inference.
     Args:
         whisper_arch: str - The name of the Whisper model to load.
@@ -31,7 +31,7 @@ def load_model(whisper_arch, device, compute_type="float16", asr_options=None, l
 
     model = WhisperModel(whisper_arch, device=device, compute_type=compute_type)
     if language is not None:
-        tokenizer = faster_whisper.tokenizer.Tokenizer(model.hf_tokenizer, model.model.is_multilingual, task="transcribe", language=language)
+        tokenizer = faster_whisper.tokenizer.Tokenizer(model.hf_tokenizer, model.model.is_multilingual, task=task, language=language)
     else:
         print("No language specified, language will be first be detected for each audio file (increases inference time).")
         tokenizer = None
@@ -215,7 +215,7 @@ class FasterWhisperPipeline(Pipeline):
 
     def transcribe(
         self, audio: Union[str, np.ndarray], batch_size=None, num_workers=0
-    ):
+    ) -> TranscriptionResult:
         if isinstance(audio, str):
             audio = load_audio(audio)
         
@@ -237,7 +237,7 @@ class FasterWhisperPipeline(Pipeline):
         else:
             language = self.tokenizer.language_code
 
-        segments = []
+        segments: List[SingleSegment] = []
         batch_size = batch_size or self._batch_size
         for idx, out in enumerate(self.__call__(data(audio, vad_segments), batch_size=batch_size, num_workers=num_workers)):
             text = out['text']
