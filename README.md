@@ -54,6 +54,7 @@ This repository provides fast automatic speech recognition (70x realtime with la
 
 <h2 align="left", id="highlights">New🚨</h2>
 
+- _WhisperX_ accepted at INTERSPEECH 2023 
 - v3 transcript segment-per-sentence: using nltk sent_tokenize for better subtitlting & better diarization
 - v3 released, 70x speed-up open-sourced. Using batched whisper with [faster-whisper](https://github.com/guillaumekln/faster-whisper) backend!
 - v2 released, code cleanup, imports whisper library VAD filtering is now turned on by default, as in the paper.
@@ -74,7 +75,7 @@ GPU execution requires the NVIDIA libraries cuBLAS 11.x and cuDNN 8.x to be inst
 
 ### 2. Install PyTorch2.0, e.g. for Linux and Windows CUDA11.7:
 
-`conda install pytorch==2.0.0 torchvision==0.15.0 torchaudio==2.0.0 pytorch-cuda=11.7 -c pytorch -c nvidia`
+`conda install pytorch==2.0.0 torchaudio==2.0.0 pytorch-cuda=11.8 -c pytorch -c nvidia`
 
 See other methods [here.](https://pytorch.org/get-started/previous-versions/#v200)
 
@@ -176,14 +177,20 @@ print(result["segments"]) # after alignment
 diarize_model = whisperx.DiarizationPipeline(use_auth_token=YOUR_HF_TOKEN, device=device)
 
 # add min/max number of speakers if known
-diarize_segments = diarize_model(audio_file)
-# diarize_model(audio_file, min_speakers=min_speakers, max_speakers=max_speakers)
+diarize_segments = diarize_model(audio)
+# diarize_model(audio, min_speakers=min_speakers, max_speakers=max_speakers)
 
 result = whisperx.assign_word_speakers(diarize_segments, result)
 print(diarize_segments)
 print(result["segments"]) # segments are now assigned speaker IDs
 ```
 
+## Demos 🚀
+
+[![Replicate (large-v2](https://img.shields.io/static/v1?label=Replicate+WhisperX+large-v2&message=Demo+%26+Cloud+API&color=blue)](https://replicate.com/daanelson/whisperx) 
+[![Replicate (medium)](https://img.shields.io/static/v1?label=Replicate+WhisperX+medium&message=Demo+%26+Cloud+API&color=blue)](https://replicate.com/carnifexer/whisperx) 
+
+If you don't have access to your own GPUs, use the links above to try out WhisperX. 
 
 <h2 align="left" id="whisper-mod">Technical Details 👷‍♂️</h2>
 
@@ -276,7 +283,7 @@ If you use this in your research, please cite the paper:
 @article{bain2022whisperx,
   title={WhisperX: Time-Accurate Speech Transcription of Long-Form Audio},
   author={Bain, Max and Huh, Jaesung and Han, Tengda and Zisserman, Andrew},
-  journal={arXiv preprint, arXiv:2303.00747},
+  journal={INTERSPEECH 2023},
   year={2023}
 }
 ```
