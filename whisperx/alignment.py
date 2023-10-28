@@ -3,7 +3,7 @@ Forced Alignment with Whisper
 C. Max Bain
 """
 from dataclasses import dataclass
-from typing import Iterator, Union, List
+from typing import Iterable, Union, List
 
 import numpy as np
 import pandas as pd
@@ -50,6 +50,7 @@ DEFAULT_ALIGN_MODELS_HF = {
     "ko": "kresnik/wav2vec2-large-xlsr-korean",
     "ur": "kingabzpro/wav2vec2-large-xls-r-300m-Urdu",
     "te": "anuragshas/wav2vec2-large-xlsr-53-telugu",
+    "hi": "theainerd/Wav2Vec2-large-xlsr-hindi"
 }
 
 
@@ -90,13 +91,15 @@ def load_align_model(language_code, device, model_name=None, model_dir=None):
 
 
 def align(
-    transcript: Iterator[SingleSegment],
+    transcript: Iterable[SingleSegment],
     model: torch.nn.Module,
     align_model_metadata: dict,
     audio: Union[str, np.ndarray, torch.Tensor],
     device: str,
     interpolate_method: str = "nearest",
     return_char_alignments: bool = False,
+    print_progress: bool = False,
+    combined_progress: bool = False,
 ) -> AlignedTranscriptionResult:
     """
     Align phoneme recognition predictions to known transcription.
@@ -116,8 +119,14 @@ def align(
     model_type = align_model_metadata["type"]
 
     # 1. Preprocess to keep only characters in dictionary
+    total_segments = len(transcript)
     for sdx, segment in enumerate(transcript):
         # strip spaces at beginning / end, but keep track of the amount.
+        if print_progress:
+            base_progress = ((sdx + 1) / total_segments) * 100
+            percent_complete = (50 + base_progress / 2) if combined_progress else base_progress
+            print(f"Progress: {percent_complete:.2f}%...")
+            
         num_leading = len(segment["text"]) - len(segment["text"].lstrip())
         num_trailing = len(segment["text"]) - len(segment["text"].rstrip())
         text = segment["text"]
@@ -161,9 +170,10 @@ def align(
         segment["sentence_spans"] = sentence_spans
     
     aligned_segments: List[SingleAlignedSegment] = []
-
+    
     # 2. Get prediction matrix from alignment model & align
     for sdx, segment in enumerate(transcript):
+        
         t1 = segment["start"]
         t2 = segment["end"]
         text = segment["text"]
@@ -184,8 +194,8 @@ def align(
             aligned_segments.append(aligned_seg)
             continue
 
-        if t1 >= MAX_DURATION or t2 - t1 < 0.02:
-            print("Failed to align segment: original start time longer than audio duration, skipping...")
+        if t1 >= MAX_DURATION:
+            print(f'Failed to align segment ("{segment["text"]}"): original start time longer than audio duration, skipping...')
             aligned_segments.append(aligned_seg)
             continue
 
@@ -197,10 +207,18 @@ def align(
 
         # TODO: Probably can get some speedup gain with batched inference here
         waveform_segment = audio[:, f1:f2]
-
+        # Handle the minimum input length for wav2vec2 models
+        if waveform_segment.shape[-1] < 400:
+            lengths = torch.as_tensor([waveform_segment.shape[-1]]).to(device)
+            waveform_segment = torch.nn.functional.pad(
+                waveform_segment, (0, 400 - waveform_segment.shape[-1])
+            )
+        else:
+            lengths = None
+            
         with torch.inference_mode():
             if model_type == "torchaudio":
-                emissions, _ = model(waveform_segment.to(device))
+                emissions, _ = model(waveform_segment.to(device), lengths=lengths)
             elif model_type == "huggingface":
                 emissions = model(waveform_segment.to(device)).logits
             else:
