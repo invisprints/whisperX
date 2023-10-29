@@ -176,7 +176,7 @@ def align(
         
         t1 = segment["start"]
         t2 = segment["end"]
-        text = segment["text"]
+        text = segment["text"].strip()
 
         aligned_seg: SingleAlignedSegment = {
             "start": t1,
@@ -268,6 +268,8 @@ def align(
 
             # increment word_idx, nltk word tokenization would probably be more robust here, but us space for now...
             if model_lang in LANGUAGES_WITHOUT_SPACES:
+                if 65 <= ord(char) <= 90 or 97 <= ord(char) <= 122 or (cdx < len(text) - 1 and text[cdx+1] == " "):
+                    continue
                 word_idx += 1
             elif cdx == len(text) - 1 or text[cdx+1] == " ":
                 word_idx += 1
@@ -288,7 +290,10 @@ def align(
 
             for word_idx in curr_chars["word-idx"].unique():
                 word_chars = curr_chars.loc[curr_chars["word-idx"] == word_idx]
-                word_text = "".join(word_chars["char"].tolist()).strip()
+                if model_lang not in LANGUAGES_WITHOUT_SPACES:
+                    word_text = "".join(word_chars["char"].tolist()).strip()
+                else:
+                    word_text = "".join(word_chars["char"].tolist())
                 if len(word_text) == 0:
                     continue
 

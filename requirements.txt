@@ -1,7 +1,7 @@
-torch>=2
+torch>=2,<3
 torchaudio>=2
 faster-whisper>=0.8
-transformers
+transformers>=4,<5
 ffmpeg-python>=0.2
 pandas
 setuptools>=65

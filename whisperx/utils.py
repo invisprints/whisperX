@@ -4,6 +4,7 @@ import re
 import sys
 import zlib
 from typing import Callable, Optional, TextIO
+import autocorrect_py as autocorrect
 
 LANGUAGES = {
     "en": "english",
@@ -195,6 +196,8 @@ class ResultWriter:
         self.output_dir = output_dir
 
     def __call__(self, result: dict, audio_path: str, options: dict):
+        if self.output_dir is None:
+            self.output_dir = os.path.dirname(audio_path)
         audio_basename = os.path.basename(audio_path)
         audio_basename = os.path.splitext(audio_basename)[0]
         output_path = os.path.join(
@@ -240,6 +243,7 @@ class SubtitlesWriter(ResultWriter):
             subtitle: list[dict] = []
             times = []
             last = result["segments"][0]["start"]
+            last_char = ""
             for segment in result["segments"]:
                 for i, original_timing in enumerate(segment["words"]):
                     timing = original_timing.copy()
@@ -249,13 +253,18 @@ class SubtitlesWriter(ResultWriter):
                     else:
                         long_pause = False
                     has_room = line_len + len(timing["word"]) <= max_line_width
+                    if (last_char in [".", "?", "!", ",", ";", ":", "。", "？", "！", "，", "؛", "؟"]
+                        and line_len > max_line_width / 2):
+                        long_pause = True
+                    else:
+                        long_pause = False
                     seg_break = i == 0 and len(subtitle) > 0 and preserve_segments
                     if line_len > 0 and has_room and not long_pause and not seg_break:
                         # line continuation
                         line_len += len(timing["word"])
                     else:
                         # new line
-                        timing["word"] = timing["word"].strip()
+                        # timing["word"] = timing["word"].strip()
                         if (
                             len(subtitle) > 0
                             and max_line_count is not None
@@ -273,21 +282,23 @@ class SubtitlesWriter(ResultWriter):
                             timing["word"] = "\n" + timing["word"]
                         line_len = len(timing["word"].strip())
                     subtitle.append(timing)
-                    times.append((segment["start"], segment["end"], segment.get("speaker")))
+                    last_char = timing["word"][-1]
+                    # times.append((segment["start"], segment["end"], segment.get("speaker")))
                     if "start" in timing:
                         last = timing["start"]
+                        times.append((timing["start"], timing["end"], timing.get("speaker")))
             if len(subtitle) > 0:
                 yield subtitle, times
 
         if "words" in result["segments"][0]:
-            for subtitle, _ in iterate_subtitles():
-                sstart, ssend, speaker = _[0]
+            for subtitle, times in iterate_subtitles():
+                sstart, _, speaker = times[0]
+                _, ssend, _ = times[-1]
                 subtitle_start = self.format_timestamp(sstart)
                 subtitle_end = self.format_timestamp(ssend)
-                if result["language"] in LANGUAGES_WITHOUT_SPACES:
-                    subtitle_text = "".join([word["word"] for word in subtitle])
-                else:
-                    subtitle_text = " ".join([word["word"] for word in subtitle])
+                split_char = "" if result["language"] in LANGUAGES_WITHOUT_SPACES else " "
+                subtitle_text = split_char.join([word["word"] for word in subtitle])
+                subtitle_text = autocorrect.format(subtitle_text)
                 has_timing = any(["start" in word for word in subtitle])
 
                 # add [$SPEAKER_ID]: to each subtitle if speaker is available
@@ -305,7 +316,7 @@ class SubtitlesWriter(ResultWriter):
                             if last != start:
                                 yield last, start, prefix + subtitle_text
 
-                            yield start, end, prefix + " ".join(
+                            yield start, end, prefix + split_char.join(
                                 [
                                     re.sub(r"^(\s*)(.*)$", r"\1<u>\2</u>", word)
                                     if j == i

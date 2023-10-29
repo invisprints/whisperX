@@ -25,7 +25,7 @@ def cli():
     parser.add_argument("--batch_size", default=8, type=int, help="the preferred batch size for inference")
     parser.add_argument("--compute_type", default="float16", type=str, choices=["float16", "float32", "int8"], help="compute type for computation")
 
-    parser.add_argument("--output_dir", "-o", type=str, default=".", help="directory to save the outputs")
+    parser.add_argument("--output_dir", "-o", type=str, default=None, help="directory to save the outputs")
     parser.add_argument("--output_format", "-f", type=str, default="all", choices=["all", "srt", "vtt", "txt", "tsv", "json", "aud"], help="format of the output file; if not specified, all available formats will be produced")
     parser.add_argument("--verbose", type=str2bool, default=True, help="whether to print out the progress and debug messages")
 
@@ -88,7 +88,8 @@ def cli():
     compute_type: str = args.pop("compute_type")
 
     # model_flush: bool = args.pop("model_flush")
-    os.makedirs(output_dir, exist_ok=True)
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
 
     align_model: str = args.pop("align_model")
     interpolate_method: str = args.pop("interpolate_method")
@@ -173,7 +174,7 @@ def cli():
         # >> VAD & ASR
         print(">>Performing transcription...")
         result = model.transcribe(audio, batch_size=batch_size, chunk_size=chunk_size, print_progress=print_progress)
-        results.append((result, audio_path))
+        results.append((result, audio_path, align_language))
 
     # Unload Whisper and VAD
     del model
@@ -185,7 +186,7 @@ def cli():
         tmp_results = results
         results = []
         align_model, align_metadata = load_align_model(align_language, device, model_name=align_model)
-        for result, audio_path in tmp_results:
+        for result, audio_path, language in tmp_results:
             # >> Align
             if len(tmp_results) > 1:
                 input_audio = audio_path
@@ -201,7 +202,7 @@ def cli():
                 print(">>Performing alignment...")
                 result = align(result["segments"], align_model, align_metadata, input_audio, device, interpolate_method=interpolate_method, return_char_alignments=return_char_alignments, print_progress=print_progress)
 
-            results.append((result, audio_path))
+            results.append((result, audio_path, align_metadata['language']))
 
         # Unload align model
         del align_model
@@ -216,13 +217,13 @@ def cli():
         print(">>Performing diarization...")
         results = []
         diarize_model = DiarizationPipeline(use_auth_token=hf_token, device=device)
-        for result, input_audio_path in tmp_results:
+        for result, input_audio_path, language in tmp_results:
             diarize_segments = diarize_model(input_audio_path, min_speakers=min_speakers, max_speakers=max_speakers)
             result = assign_word_speakers(diarize_segments, result)
-            results.append((result, input_audio_path))
+            results.append((result, input_audio_path, language))
     # >> Write
-    for result, audio_path in results:
-        result["language"] = align_language
+    for result, audio_path, language in results:
+        result["language"] = language
         writer(result, audio_path, writer_args)
 
 if __name__ == "__main__":
