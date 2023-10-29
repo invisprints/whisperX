@@ -195,6 +195,8 @@ class ResultWriter:
         self.output_dir = output_dir
 
     def __call__(self, result: dict, audio_path: str, options: dict):
+        if self.output_dir is None:
+            self.output_dir = os.path.dirname(audio_path)
         audio_basename = os.path.basename(audio_path)
         audio_basename = os.path.splitext(audio_basename)[0]
         output_path = os.path.join(
@@ -282,12 +284,10 @@ class SubtitlesWriter(ResultWriter):
         if "words" in result["segments"][0]:
             for subtitle, _ in iterate_subtitles():
                 sstart, ssend, speaker = _[0]
-                subtitle_start = self.format_timestamp(sstart)
-                subtitle_end = self.format_timestamp(ssend)
-                if result["language"] in LANGUAGES_WITHOUT_SPACES:
-                    subtitle_text = "".join([word["word"] for word in subtitle])
-                else:
-                    subtitle_text = " ".join([word["word"] for word in subtitle])
+                subtitle_start = self.format_timestamp(subtitle[0]["start"])
+                subtitle_end = self.format_timestamp(subtitle[-1]["end"])
+                split_char = "" if result["language"] in LANGUAGES_WITHOUT_SPACES else " "
+                subtitle_text = split_char.join([word["word"] for word in subtitle])
                 has_timing = any(["start" in word for word in subtitle])
 
                 # add [$SPEAKER_ID]: to each subtitle if speaker is available
@@ -305,7 +305,7 @@ class SubtitlesWriter(ResultWriter):
                             if last != start:
                                 yield last, start, prefix + subtitle_text
 
-                            yield start, end, prefix + " ".join(
+                            yield start, end, prefix + split_char.join(
                                 [
                                     re.sub(r"^(\s*)(.*)$", r"\1<u>\2</u>", word)
                                     if j == i
