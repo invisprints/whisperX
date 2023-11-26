@@ -3,3 +3,5 @@ whisperx.egg-info/
 .ipynb_checkpoints
 *.ipynb
 .vscode/
+.env
+tests/*.*t
